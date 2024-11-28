@@ -14,7 +14,7 @@ from Bots.ChessBotList import register_chess_bot
 
 #   Simply move the pawns forward and tries to capture as soon as possible
 def chess_bot(player_sequence, board, time_budget, **kwargs):
-
+    print("PawnMover's turn:")
     color = player_sequence[1]
     for x in range(board.shape[0]-1):
         for y in range(board.shape[1]):
