@@ -1,7 +1,5 @@
 from PyQt6.QtWidgets import QApplication
-
 from ChessArena import ChessArena, ChessApp
-
 
 if __name__ == '__main__':
 

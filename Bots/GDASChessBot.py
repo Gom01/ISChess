@@ -10,40 +10,29 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
     print("GDAS's turn:")
     print(board)
     color = player_sequence[1]
+    boards = chessBot(color, board, 0)
+    #Calculate scores based on boards
+    #Find old position to new position
+    return((y, x), (y, x))
 
-    pieces: list[Piece] = []
-    
-    for y in range(board.shape[0]-1):
+
+def chessBot(color, board, profondeur):
+    finalBoards:list[Board] = []
+
+    for y in range(board.shape[0] - 1):
         for x in range(board.shape[1]):
-            # print(x,y)
-            if board[y,x] == "p"+color:
-                p: Piece = Piece(x,y,'p')
-                pieces.append(p)
-                # print(p.type,p.pos.x,p.pos.y)
+            if board[y, x][1] == color:
+                match board[y, x][0]:
+                    case 'p':
+                         finalBoards += movementPawn(board, Position(x, y), color)
 
-    newPos: Position = Position(0,0)
-    i = random.randint(0, len(pieces)-1)
-    p: Piece = pieces[i]
+    for board in finalBoards:
+        chessBot(color, board.board, profondeur + 1)
 
-    while newPos.getPosTuple() == (0,0):
-        i = random.randint(0, len(pieces)-1)
-        p = pieces[i]
+    if profondeur == 3:
+        return ##
 
-        match p.type:
-            case 'p':
-                newPos = movementPawn(board, p.pos)
-            case 'r':
-                newPos = movementRook(board, p.pos)
-            case 'n':
-                newPos = movementKnight(board, p.pos)
-            case 'b':
-                newPos = movementBishop(board, p.pos)
-            case 'q':
-                newPos = movementQueen(board, p.pos)
-            case 'k':
-                newPos = movementKing(board, p.pos)
 
-    return (p.pos.y, p.pos.x), (newPos.y,newPos.x)
 
 class Piece:
     def __init__(self, x: int, y: int, type: str) -> None:
@@ -58,13 +47,33 @@ class Position:
     def getPosTuple(self) -> tuple:
         return (self.x, self.y)
 
-def movementPawn(board, pos: Position) -> Position:
+class Board:
+    def __init__(self, board, score) -> None:
+        self.board = board
+        self.score = score
+
+
+def movementPawn(board:Board, pos: Position, color) -> list[Board]:
+    score = board.score
+    boards:list[Board] = []
     if board[pos.y+1, pos.x] == '':
-        print("can move")
-        return Position(pos.x, pos.y+1)
-    else:
-        print("can't move")
-        return Position(0,0)
+        board[pos.y+1, pos.x] = "p" + color
+        board[pos.y, pos.x] = ''
+        boards.append(Board(board, score))
+        score += 1
+
+    if board[pos.y+1, pos.x + 1][1] != color:
+        score += 3
+        board[pos.y+1, pos.x+1] = "p" + color
+        board[pos.y, pos.x] = ''
+        boards.append(Board(board, score))
+    if board[pos.y+1, pos.x - 1][1] != color:
+        score += 3
+        board[pos.y+1, pos.x-1] = "p" + color
+        board[pos.y, pos.x] = ''
+        boards.append(Board(board, score))
+    return(boards)
+
 
 def movementRook(board, pos: Position) -> Position:
     None
