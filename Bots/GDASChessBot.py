@@ -1,10 +1,13 @@
+import collections
+from collections import deque
+
 from PyQt6 import QtCore
 from Bots.ChessBotList import register_chess_bot
 
 import random
 
-# My bot
 def chess_bot(player_sequence, board, time_budget, **kwargs):
+
 
     def print_board_content():
         print("Board contents and coordinates:")
@@ -13,25 +16,24 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
                 if board[x,y] != '':
                     print(f"Position ({x},{y}): {board[x,y]}")
 
-    def get_pawn_moves(x, y, color):
+    def get_pawn_moves(x, y, color, current_board):
         moves = []
         direction = 1 # ou 2 dans le jeu normal ?
 
         # TOUT DROIT YEAAAH
         next_x = x + direction
-        if 0 <= next_x < 8 and board[next_x,y] == '':
+        if 0 <= next_x < 8 and current_board[next_x,y] == '':
             moves.append(((x,y), (next_x,y)))
 
         # en diago
         for dy in [-1, 1]:
             next_y = y + dy
             if 0 <= next_x < 8 and 0 <= next_y < 8:
-                if board[next_x,next_y] != '' and board[next_x,next_y][-1] != color:
+                if current_board[next_x,next_y] != '' and current_board[next_x,next_y][-1] != color:
                     moves.append(((x,y), (next_x,next_y)))
-
         return moves
 
-    def get_rook_moves(x, y, color):
+    def get_rook_moves(x, y, color, current_board):
         moves = []
         directions = [(0,1), (0,-1), (1,0), (-1,0)]  # right, left, down, up
 
@@ -42,11 +44,11 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
             while 0 <= current_x < 8 and 0 <= current_y < 8:
 
                 # empty is possible move
-                if board[current_x,current_y] == '':
+                if current_board[current_x,current_y] == '':
                     moves.append(((x,y), (current_x,current_y)))
 
                 # detected enemy piece => can catch
-                elif board[current_x,current_y][-1] != color:
+                elif current_board[current_x,current_y][-1] != color:
                     moves.append(((x,y), (current_x,current_y)))
                     break
 
@@ -57,7 +59,7 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
 
         return moves
 
-    def get_bishop_moves(x, y, color):
+    def get_bishop_moves(x, y, color, current_board):
         moves = []
         directions = [(1,1), (1,-1), (-1,1), (-1,-1)]  # diagonals
 
@@ -66,9 +68,9 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
 
             # move in any diagonal direction step by step until reaching end OR hitting piece SAME AS ROOK
             while 0 <= current_x < 8 and 0 <= current_y < 8:
-                if board[current_x,current_y] == '':
+                if current_board[current_x,current_y] == '':
                     moves.append(((x,y), (current_x,current_y)))
-                elif board[current_x,current_y][-1] != color:
+                elif current_board[current_x,current_y][-1] != color:
                     moves.append(((x,y), (current_x,current_y)))
                     break
                 else:
@@ -77,7 +79,7 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
 
         return moves
 
-    def get_queen_moves(x, y, color):
+    def get_queen_moves(x, y, color, current_board):
         # Queen combines rook and bishop moves
         moves = []
 
@@ -88,9 +90,9 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
 
             # move in any diagonal direction step by step until reaching end OR hitting piece SAME AS ROOK
             while 0 <= current_x < 8 and 0 <= current_y < 8:
-                if board[current_x,current_y] == '':
+                if current_board[current_x,current_y] == '':
                     moves.append(((x,y), (current_x,current_y)))
-                elif board[current_x,current_y][-1] != color:
+                elif current_board[current_x,current_y][-1] != color:
                     moves.append(((x,y), (current_x,current_y)))
                     break
                 else:
@@ -106,11 +108,11 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
             while 0 <= current_x < 8 and 0 <= current_y < 8:
 
                 # empty is possible move
-                if board[current_x,current_y] == '':
+                if current_board[current_x,current_y] == '':
                     moves.append(((x,y), (current_x,current_y)))
 
                 # detected enemy piece => can catch
-                elif board[current_x,current_y][-1] != color:
+                elif current_board[current_x,current_y][-1] != color:
                     moves.append(((x,y), (current_x,current_y)))
                     break
 
@@ -121,7 +123,7 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
 
         return moves
 
-    def get_knight_moves(x, y, color):
+    def get_knight_moves(x, y, color, current_board):
         moves = []
 
         # 8 vectors in L shape
@@ -131,12 +133,12 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
         for dx, dy in knight_moves:
             new_x, new_y = x + dx, y + dy
             if 0 <= new_x < 8 and 0 <= new_y < 8:
-                if board[new_x,new_y] == '' or board[new_x,new_y][-1] != color:
+                if current_board[new_x,new_y] == '' or current_board[new_x,new_y][-1] != color:
                     moves.append(((x,y), (new_x,new_y)))
 
         return moves
 
-    def get_king_moves(x, y, color):
+    def get_king_moves(x, y, color, current_board):
         moves = []
         directions = [(0,1), (0,-1), (1,0), (-1,0),
                       (1,1), (1,-1), (-1,1), (-1,-1)]
@@ -144,78 +146,92 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
         for dx, dy in directions:
             new_x, new_y = x + dx, y + dy
             if 0 <= new_x < 8 and 0 <= new_y < 8:
-                if board[new_x,new_y] == '' or board[new_x,new_y][-1] != color:
+                if current_board[new_x,new_y] == '' or current_board[new_x,new_y][-1] != color:
                     moves.append(((x,y), (new_x,new_y)))
 
         return moves
 
-    # the default data
-    print(board)
-    print(player_sequence)
-    print(time_budget)
-    print("my color: " + player_sequence[1])
+
+    def getAllPossibleMoves(current_board, player_color):
+        all_possible_moves = []
+        for x in range(current_board.shape[0]):
+            for y in range(current_board.shape[1]):
+                moves = []
+
+                if current_board[x,y] != '':
+                    #print(f"Position ({x},{y}): {current_board[x,y]}")
+
+                    piece = current_board[x,y][0]
+                    color = current_board[x,y][1]
+
+                    if color != player_color:
+                        continue
+                    match piece:
+                        case "p":
+                            moves = get_pawn_moves(x, y, color, current_board)
+                        case "n":
+                            moves = get_knight_moves(x, y, color, current_board)
+                        case "b":
+                            moves = get_bishop_moves(x, y, color, current_board)
+                        case "q":
+                            moves = get_queen_moves(x, y, color, current_board)
+                        case "k":
+                            moves = get_king_moves(x, y, color, current_board)
+                        case "r":
+                            moves = get_rook_moves(x, y, color, current_board)
+
+                    if moves and( moves != -1):
+                        #print("appending moves: ")
+                        #print(moves)
+
+                        all_possible_moves.append(moves)
+                        #print("There are " + str(len(moves)))
+        return all_possible_moves
+
+
+    def movePiece(move, current_board):
+        oldX = move[0][0]
+        oldY = move[0][1]
+        new_x = move[1][0]
+        new_y = move[1][1]
+        piece = current_board[oldX,oldY]
+        current_board[oldX,oldY] = ''
+        current_board[new_x,new_y] = piece
+        return current_board
+
 
     player_color = player_sequence[1]
 
-    # printing the board content with coords
-    #print_board_content()
+    def bfs(board, depth, player_color):
+        # Initialize the BFS queue
+        queue = collections.deque([(board, 0)])  # (current_board_state, current_depth)
+        explored_boards = []  # To store all explored board states
 
-    # traverse boad and add moves to list
-
-    # list w al the moves
-    all_possible_moves = []
-
-    for x in range(board.shape[0]):
-        for y in range(board.shape[1]):
-            moves = []
-
-            if board[x,y] != '':
-
-                print(f"Position ({x},{y}): {board[x,y]}")
-
-                piece = board[x,y][0]
-                color = board[x,y][1]
-
-                if color != player_color:
-                    continue
-
-                match piece:
-                    case "p":
-                        moves = get_pawn_moves(x, y, color)
-                    case "n":
-                        moves = get_knight_moves(x, y, color)
-                    case "b":
-                        moves = get_bishop_moves(x, y, color)
-                    case "q":
-                        moves = get_queen_moves(x, y, color)
-                    case "k":
-                        moves = get_king_moves(x, y, color)
-                    case "r":
-                        moves = get_rook_moves(x, y, color)
-
-                if moves and( moves != -1):
-                    print("appending moves: ")
-                    print(moves)
-
-                    all_possible_moves.append(moves)
-                    print("There are " + str(len(moves)))
+        while queue:
+            current_board, current_depth = queue.popleft()
+            # If the maximum depth is reached, skip further exploration
+            if current_depth == depth:
+                explored_boards.append(current_board)
+                continue
+            # Get all possible moves for the current player
+            #print(current_board)
+            possible_moves = getAllPossibleMoves(current_board, player_color)
+            possible_moves = [item for sublist in possible_moves for item in sublist]  # Flatten
+            # Generate new board states and add to the queue
+            print(possible_moves)
+            for move in possible_moves:
+                print(move)
+                new_board = current_board.copy()
+                new_board = movePiece(move, new_board)
+                print(new_board)
+                queue.append((new_board, current_depth + 1))
+        return explored_boards  # Return all the boards explored up to the given depth
 
 
-    # random choices
-    print("All moves: \n")
-    print(all_possible_moves)
-    selected_move = random.choice(random.choice(all_possible_moves))
-
-    # print("selected move is : " + selected_move[0] + ", " + selected_move[1])
-
-    # print("we are trying to move the piece " + board[selected_move[0][0], selected_move[0][1]])
-
-    print(selected_move)
-
-    return selected_move
+    final_tables = bfs(board, 4, player_color)
+    print(len(final_tables))
 
 
     # default for DEBUG
     return (0,0), (0,0)
-
-register_chess_bot("NewBot", chess_bot)
+register_chess_bot("GDAS", chess_bot)
