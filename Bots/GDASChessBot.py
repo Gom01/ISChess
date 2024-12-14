@@ -211,6 +211,11 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
     max_index = final_scores.index(max(final_scores))
     best_table = final_tables[max_index]
 
+    ##TODO
+    #Sometimes it is possible to get a better move at depth 1. (don't do it)
+    #Optimize because to many calculations
+    #Calculate BFS for the other color too for better choices
+
     return best_table.parent.parent.move
 
     # default for DEBUG
