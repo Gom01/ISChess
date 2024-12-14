@@ -202,36 +202,76 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
 
     player_color = player_sequence[1]
 
-    def bfs(board, depth, player_color):
+    def bfs(board:Board, depth, player_color):
         # Initialize the BFS queue
-        queue = collections.deque([(board, 0)])  # (current_board_state, current_depth)
-        explored_boards = []  # To store all explored board states
+        queue = collections.deque([board])  # (current_board_state, current_depth)
+        explored_boards = []# To store all explored board states
+        final_scores = []
 
         while queue:
-            current_board, current_depth = queue.popleft()
+            current_board:Board = queue.popleft()
+            current_depth = current_board.depth
             # If the maximum depth is reached, skip further exploration
             if current_depth == depth:
                 explored_boards.append(current_board)
+                final_scores.append(calculate_score(current_board.board, player_color))
                 continue
+
             # Get all possible moves for the current player
             #print(current_board)
-            possible_moves = getAllPossibleMoves(current_board, player_color)
+            possible_moves = getAllPossibleMoves(current_board.board, player_color)
             possible_moves = [item for sublist in possible_moves for item in sublist]  # Flatten
             # Generate new board states and add to the queue
-            print(possible_moves)
             for move in possible_moves:
-                print(move)
-                new_board = current_board.copy()
+                new_board = current_board.board.copy()
                 new_board = movePiece(move, new_board)
-                print(new_board)
-                queue.append((new_board, current_depth + 1))
-        return explored_boards  # Return all the boards explored up to the given depth
+                queue.append(Board(new_board, move, current_depth + 1, current_board))
+        return explored_boards, final_scores  # Return all the boards explored up to the given depth
 
+    def calculate_score(board, my_color):
+        piece_values = {
+            'pw': 1, 'nw': 3, 'bw': 3, 'rw': 5, 'qw': 9, 'kw': 0,  # White pieces
+            'pb': 1, 'nb': 3, 'bb': 3, 'rb': 5, 'qb': 9, 'kb': 0  # Black pieces
+        }
+        if my_color == 'w':
+            opponent_prefix = 'b'
+        else:
+            opponent_prefix = 'w'
 
-    final_tables = bfs(board, 4, player_color)
-    print(len(final_tables))
+        score = 0
+        for row in board:
+            for piece in row:
+                if piece in piece_values:
+                    if piece[1] == opponent_prefix:
+                        score -= piece_values[piece]
+                    else:
+                        score += piece_values[piece]
+        return score
+
+    ##Applying BFS and returning all the Boards possible depth = 3
+    final_tables, final_scores = bfs(Board(board, None, 0, None), 3, player_color)
+    max_index = final_scores.index(max(final_scores))
+    best_table = final_tables[max_index]
+
+    print(best_table.board)
+    print(best_table.parent.board)
+    print(best_table.parent.parent.board)
+    print(best_table.parent.parent.move)
+
+    return best_table.parent.parent.move
 
 
     # default for DEBUG
     return (0,0), (0,0)
+
+
+
 register_chess_bot("GDAS", chess_bot)
+
+
+class Board:
+    def __init__(self, board, move, depth, parent):
+        self.parent = parent
+        self.board = board
+        self.move = move
+        self.depth = depth
