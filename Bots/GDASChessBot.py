@@ -1,5 +1,6 @@
 import collections
 from collections import deque
+from time import process_time
 
 from PyQt6 import QtCore
 from Bots.ChessBotList import register_chess_bot
@@ -207,15 +208,17 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
 
     ##Applying BFS and returning all the Boards possible depth = 3
     player_color = player_sequence[1]
+    startTime = process_time()
     final_tables, final_scores = bfs(Board(board, None, 0, None), 3, player_color)
     max_index = final_scores.index(max(final_scores))
     best_table = final_tables[max_index]
+    finaleTime = process_time() - startTime
 
     ##TODO
     #Sometimes it is possible to get a better move at depth 1. (don't do it)
     #Optimize because to many calculations
     #Calculate BFS for the other color too for better choices
-
+    print(f"Calculated time : {finaleTime}")
     return best_table.parent.parent.move
 
     # default for DEBUG
