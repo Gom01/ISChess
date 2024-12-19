@@ -150,7 +150,6 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
                         #print(moves)
                         all_possible_moves.append(moves)
                         #print("There are " + str(len(moves)))
-                        
         return all_possible_moves
 
     #Move piece (virtually)
@@ -213,7 +212,6 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
     final_tables, final_scores = bfs(Board(board, None, 0, None), 3, player_color)
     max_index = final_scores.index(max(final_scores))
     best_table = final_tables[max_index]
-    print_board(best_table.parent.parent.board)
     finaleTime = process_time() - startTime
 
     ##TODO
@@ -226,12 +224,8 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
     # default for DEBUG
     return (0,0), (0,0)
 
-def print_board(board):
-    for row in board:
-        print(' '.join(piece if piece else '--' for piece in row))
-    print('\n')
-    
-register_chess_bot("GDAS", chess_bot)
+
+register_chess_bot("BFS", chess_bot)
 
 class Board:
     def __init__(self, board, move, depth, parent):
