@@ -1,4 +1,5 @@
 import collections
+import copy
 from collections import deque
 from time import process_time
 
@@ -12,7 +13,10 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
     ##FUNCTION OF MOVEMENTS (pawn,...)
     def get_pawn_moves(x, y, color, current_board):
         moves = []
-        direction = 1
+        if color == 'w':
+            direction = 1
+        else:
+            direction = -1
         # tout droit
         next_x = x + direction
         if 0 <= next_x < 8 and current_board[next_x,y] == '':
@@ -120,7 +124,7 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
         return moves
 
 
-    ##Calculating possible moves
+    ##CALCULATING POSSIBLE MOVES
     def getAllPossibleMoves(current_board, player_color):
         all_possible_moves = []
         for x in range(current_board.shape[0]):
@@ -146,13 +150,10 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
                         case "r":
                             moves = get_rook_moves(x, y, color, current_board)
                     if moves and( moves != -1):
-                        #print("appending moves: ")
-                        #print(moves)
                         all_possible_moves.append(moves)
-                        #print("There are " + str(len(moves)))
         return all_possible_moves
 
-    #Move piece (virtually)
+    #MOVE PIECE (VIRTUALLY)
     def movePiece(move, current_board):
         oldX = move[0][0]
         oldY = move[0][1]
@@ -163,73 +164,144 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
         current_board[new_x,new_y] = piece
         return current_board
 
+    #CALCULATING ALL POSSIBLE BOARDS
+    def allpossibleBoards(board:Board, currentColor):
+        boards = []
+        possible_moves = getAllPossibleMoves(board.board, currentColor)
+        possible_moves = [item for sublist in possible_moves for item in sublist]
+        #print(f"All possible moves : {possible_moves}, TOTAL = {len(possible_moves)}")
 
-    def bfs(board:Board, depth, player_color):
-        queue = collections.deque([board])
-        explored_boards = []
-        final_scores = []
-        while queue:
-            current_board:Board = queue.popleft()
-            current_depth = current_board.depth
-            # If the maximum depth is reached, skip further exploration
-            if current_depth == depth:
-                explored_boards.append(current_board)
-                final_scores.append(calculate_score(current_board.board, player_color))
-                continue
-            # Get all possible moves for the current player
-            possible_moves = getAllPossibleMoves(current_board.board, player_color)
-            possible_moves = [item for sublist in possible_moves for item in sublist]  # Flatten
-            # Generate new board states and add to the queue
-            for move in possible_moves:
-                new_board = current_board.board.copy()
-                new_board = movePiece(move, new_board)
-                queue.append(Board(new_board, move, current_depth + 1, current_board))
-        return explored_boards, final_scores  # Return all the boards explored up to the given depth
+        for move in possible_moves:
+            new_board = copy.deepcopy(board.board)
+            new_board = movePiece(move, new_board)
+            new_board = Board(
+                new_board,
+                move,
+                board.depth + 1,
+                board,
+                calculate_score(new_board, board.score, currentColor)
+            )
+            boards.append(new_board)
+            #print(f"Possible board SCORE {new_board.score}: \n {new_board.board}")
+        return boards
 
-    def calculate_score(board, my_color):
+    # CALCULATING SCORE BASED ON THE BOARD
+    def calculate_score(board, parent_score, my_color):
         piece_values = {
-            'pw': 1, 'nw': 3, 'bw': 3, 'rw': 5, 'qw': 9, 'kw': 0,  # White pieces
-            'pb': 1, 'nb': 3, 'bb': 3, 'rb': 5, 'qb': 9, 'kb': 0  # Black pieces
+            'p': 10, 'n': 30, 'b': 30, 'r': 50, 'q': 90, 'k': 10000  # Shared values for both colors
         }
-        if my_color == 'w':
-            opponent_prefix = 'b'
-        else:
-            opponent_prefix = 'w'
+        values_table = [
+            [10, 10, 10, 10, 10, 10, 10, 10],
+            [20, 20, 20, 20, 20, 20, 20, 20],
+            [30, 30, 30, 30, 30, 30, 30, 30],
+            [40, 40, 40, 40, 40, 40, 40, 40],
+            [50, 50, 50, 50, 50, 50, 50, 50],
+            [60, 60, 60, 60, 60, 60, 60, 60],
+            [70, 70, 70, 70, 70, 70, 70, 70],
+            [80, 80, 80, 80, 80, 80, 80, 80]
+        ]
+        opponent_color = 'b' if my_color == 'w' else 'w'
         score = 0
-        for row in board:
-            for piece in row:
-                if piece in piece_values:
-                    if piece[1] == opponent_prefix:
-                        score -= piece_values[piece]
-                    else:
-                        score += piece_values[piece]
+        for row_index, row in enumerate(board):
+            for col_index, piece in enumerate(row):
+                if piece == '':
+                    continue
+
+                piece_type = piece[0]
+                piece_color = piece[1]
+                piece_value = piece_values.get(piece_type)
+                position_value = 0
+
+                if piece_color == 'b':
+                    # For black pieces, flip the position value from the values_table
+                    position_value = values_table[7 - row_index][7 - col_index]
+                else:
+                    # For white pieces, use the values_table directly
+                    position_value = values_table[row_index][col_index]
+
+                if piece_color == opponent_color:
+                    score -= (piece_value + position_value)
+                else:
+                    score += (piece_value + position_value)
         return score
 
+    # CHANGE COLOR
+    def changeColor(color):
+        if color == 'w':
+            return 'b'
+        else:
+            return 'w'
 
-    ##Applying BFS and returning all the Boards possible depth = 3
+    #ALPHA BETA PRUNING
+    def minimax(board:Board, depth, maximizingPlayer, alpha, beta, my_color, opponent_color):
+            if board.depth == depth:
+                return board
+            if maximizingPlayer:
+                #print(f"Should move all my pieces : Current Depth {board.depth}")
+                best = MIN
+                ##Go through all the children of my color
+                boards = allpossibleBoards(board, my_color)
+                for b in boards:
+                    finalBoard = minimax(b, depth,False, alpha, beta, my_color, opponent_color)
+
+                    if finalBoard.score > best.score:
+                        best = finalBoard
+
+                    alpha = max(alpha, best.score)
+
+                    # Alpha Beta Pruning
+                    if beta <= alpha:
+                        break
+                return best
+            else:
+                best = MAX
+                #print(f"Should move all my opponent's pieces : Current Depth {board.depth}")
+                boards = allpossibleBoards(board, opponent_color)
+                for b in boards:
+                    finalBoard = minimax(b, depth, True , alpha, beta, my_color, opponent_color)
+
+                    if finalBoard.score < best.score:
+                        best = finalBoard
+
+                    beta = min(beta, best.score)
+
+                    # Alpha Beta Pruning
+                    if beta <= alpha:
+                        break
+                return best
+
     player_color = player_sequence[1]
     startTime = process_time()
-    final_tables, final_scores = bfs(Board(board, None, 0, None), 3, player_color)
-    max_index = final_scores.index(max(final_scores))
-    best_table = final_tables[max_index]
+
+    MAX = Board(None, None, None, None, 1000)
+    MIN = Board(None, None, None, None, -1000)
+    current_board = Board(board, None, 0, None, 0)
+    bestTable:Board = minimax(current_board, 3, True, 0, 1000, player_color, changeColor(player_color))
+
+
+    try :
+        print(f"White choice 1 : \n {bestTable.parent.parent.board}")
+        print(f"Black choice 1 : \n {bestTable.parent.board}")
+        print(f"White choice 2 : \n {bestTable.board}")
+    except Exception as e:
+        print("Cannot display parents ! ")
+
     finaleTime = process_time() - startTime
 
-    ##TODO
-    #Sometimes it is possible to get a better move at depth 1. (don't do it)
-    #Optimize because to many calculations
-    #Calculate BFS for the other color too for better choices
+
     print(f"Calculated time : {finaleTime}")
-    return best_table.parent.parent.move
+    return bestTable.parent.parent.move
+
 
     # default for DEBUG
     return (0,0), (0,0)
 
-
-register_chess_bot("BFS", chess_bot)
+register_chess_bot("alphaBeta", chess_bot)
 
 class Board:
-    def __init__(self, board, move, depth, parent):
+    def __init__(self, board, move, depth, parent, score):
         self.parent = parent
         self.board = board
         self.move = move
         self.depth = depth
+        self.score = score
