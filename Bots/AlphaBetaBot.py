@@ -2,7 +2,7 @@ import collections
 import copy
 from collections import deque
 from time import process_time
-
+import numpy as np
 from PyQt6 import QtCore
 from Bots.ChessBotList import register_chess_bot
 
@@ -13,10 +13,7 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
     ##FUNCTION OF MOVEMENTS (pawn,...)
     def get_pawn_moves(x, y, color, current_board):
         moves = []
-        if color == 'w':
-            direction = 1
-        else:
-            direction = -1
+        direction = 1
         # tout droit
         next_x = x + direction
         if 0 <= next_x < 8 and current_board[next_x,y] == '':
@@ -165,11 +162,11 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
         return current_board
 
     #CALCULATING ALL POSSIBLE BOARDS
-    def allpossibleBoards(board:Board, currentColor):
+    def allpossibleBoards(board:Board, currentColor, my_color):
         boards = []
         possible_moves = getAllPossibleMoves(board.board, currentColor)
         possible_moves = [item for sublist in possible_moves for item in sublist]
-        #print(f"All possible moves : {possible_moves}, TOTAL = {len(possible_moves)}")
+        print(f"All possible moves : {possible_moves}, TOTAL = {len(possible_moves)}")
 
         for move in possible_moves:
             new_board = copy.deepcopy(board.board)
@@ -179,50 +176,49 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
                 move,
                 board.depth + 1,
                 board,
-                calculate_score(new_board, board.score, currentColor)
+                calculate_score(new_board, board.score, my_color)
             )
             boards.append(new_board)
-            #print(f"Possible board SCORE {new_board.score}: \n {new_board.board}")
+            print(f"My current score :  {new_board.score} - DEPTH {new_board.depth} : \n {new_board.board} ")
         return boards
 
     # CALCULATING SCORE BASED ON THE BOARD
     def calculate_score(board, parent_score, my_color):
         piece_values = {
-            'p': 10, 'n': 30, 'b': 30, 'r': 50, 'q': 90, 'k': 10000  # Shared values for both colors
+            'p': 10, 'n': 30, 'b': 30, 'r': 50, 'q': 90, 'k': 10000  # Material values for pieces
         }
-        values_table = [
-            [10, 10, 10, 10, 10, 10, 10, 10],
-            [20, 20, 20, 20, 20, 20, 20, 20],
-            [30, 30, 30, 30, 30, 30, 30, 30],
-            [40, 40, 40, 40, 40, 40, 40, 40],
-            [50, 50, 50, 50, 50, 50, 50, 50],
-            [60, 60, 60, 60, 60, 60, 60, 60],
-            [70, 70, 70, 70, 70, 70, 70, 70],
-            [80, 80, 80, 80, 80, 80, 80, 80]
+        # Single positional table (applies to all pieces)
+        positional_table = [
+            [-5, -4, -3, -3, -3, -3, -4, -5],
+            [-4, -2, -1, -1, -1, -1, -2, -4],
+            [-3, -1, 1, 1, 1, 1, -1, -3],
+            [-3, -1, 1, 2, 2, 1, -1, -3],
+            [-3, -1, 1, 2, 2, 1, -1, -3],
+            [-3, -1, 1, 1, 1, 1, -1, -3],
+            [-4, -2, -1, -1, -1, -1, -2, -4],
+            [-5, -4, -3, -3, -3, -3, -4, -5]
         ]
+
         opponent_color = 'b' if my_color == 'w' else 'w'
-        score = 0
+        score = parent_score
+
         for row_index, row in enumerate(board):
             for col_index, piece in enumerate(row):
                 if piece == '':
                     continue
 
-                piece_type = piece[0]
-                piece_color = piece[1]
-                piece_value = piece_values.get(piece_type)
-                position_value = 0
+                piece_type = piece[0]  # e.g., 'p' for pawn
+                piece_color = piece[1]  # 'w' or 'b'
+                piece_value = piece_values.get(piece_type, 0)  # Material value
 
-                if piece_color == 'b':
-                    # For black pieces, flip the position value from the values_table
-                    position_value = values_table[7 - row_index][7 - col_index]
-                else:
-                    # For white pieces, use the values_table directly
-                    position_value = values_table[row_index][col_index]
+                # Positional value from the unified table
+                position_value = positional_table[row_index][col_index]
 
                 if piece_color == opponent_color:
                     score -= (piece_value + position_value)
                 else:
                     score += (piece_value + position_value)
+
         return score
 
     # CHANGE COLOR
@@ -234,13 +230,15 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
 
     #ALPHA BETA PRUNING
     def minimax(board:Board, depth, maximizingPlayer, alpha, beta, my_color, opponent_color):
+
             if board.depth == depth:
                 return board
+
             if maximizingPlayer:
-                #print(f"Should move all my pieces : Current Depth {board.depth}")
+                print(f"Should move all my pieces : Current Depth {board.depth}")
                 best = MIN
                 ##Go through all the children of my color
-                boards = allpossibleBoards(board, my_color)
+                boards = allpossibleBoards(board, my_color, my_color)
                 for b in boards:
                     finalBoard = minimax(b, depth,False, alpha, beta, my_color, opponent_color)
 
@@ -255,13 +253,15 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
                 return best
             else:
                 best = MAX
-                #print(f"Should move all my opponent's pieces : Current Depth {board.depth}")
-                boards = allpossibleBoards(board, opponent_color)
+                print(f"Should move all my opponent's pieces : Current Depth {board.depth}")
+                board.board = np.flipud(np.fliplr(board.board))
+                boards = allpossibleBoards(board, opponent_color, my_color)
                 for b in boards:
-                    finalBoard = minimax(b, depth, True , alpha, beta, my_color, opponent_color)
+                    b.board = np.flipud(b.board)
+                    finalBoard:Board = minimax(b, depth, True , alpha, beta, my_color, opponent_color)
 
                     if finalBoard.score < best.score:
-                        best = finalBoard
+                        best:Board = finalBoard
 
                     beta = min(beta, best.score)
 
@@ -273,16 +273,19 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
     player_color = player_sequence[1]
     startTime = process_time()
 
-    MAX = Board(None, None, None, None, 1000)
-    MIN = Board(None, None, None, None, -1000)
+    MAX = Board(None, None, None, None, float('inf'))
+    MIN = Board(None, None, None, None, float('-inf'))
     current_board = Board(board, None, 0, None, 0)
-    bestTable:Board = minimax(current_board, 3, True, 0, 1000, player_color, changeColor(player_color))
+    bestTable:Board = minimax(current_board, 2, True, 0, 1000, player_color, changeColor(player_color))
 
 
     try :
-        print(f"White choice 1 : \n {bestTable.parent.parent.board}")
-        print(f"Black choice 1 : \n {bestTable.parent.board}")
-        print(f"White choice 2 : \n {bestTable.board}")
+        ##11
+        print("-------------------------------------------------------")
+        print(f"Beginning SCORE = {bestTable.parent.parent.score} : \n {bestTable.parent.parent.board}")
+        print(f"{player_color} choice 1 SCORE = {bestTable.parent.score} : \n {bestTable.parent.board}")
+        print(f"{changeColor(player_color)} choice 1 SCORE = {bestTable.score}: \n {bestTable.board}")
+        print("-------------------------------------------------------")
     except Exception as e:
         print("Cannot display parents ! ")
 
@@ -290,7 +293,7 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
 
 
     print(f"Calculated time : {finaleTime}")
-    return bestTable.parent.parent.move
+    return bestTable.parent.move
 
 
     # default for DEBUG
