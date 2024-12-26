@@ -14,16 +14,21 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
     def get_pawn_moves(x, y, color, current_board):
         moves = []
         direction = 1
+
         # tout droit
         next_x = x + direction
         if 0 <= next_x < 8 and current_board[next_x,y] == '':
             moves.append(((x,y), (next_x,y)))
+
         # diago
         for dy in [-1, 1]:
             next_y = y + dy
             if 0 <= next_x < 8 and 0 <= next_y < 8:
                 if current_board[next_x,next_y] != '' and current_board[next_x,next_y][-1] != color:
                     moves.append(((x,y), (next_x,next_y)))
+
+        for move in moves:
+            print(move)
         return moves
 
     def get_rook_moves(x, y, color, current_board):
@@ -276,15 +281,15 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
     MAX = Board(None, None, None, None, float('inf'))
     MIN = Board(None, None, None, None, float('-inf'))
     current_board = Board(board, None, 0, None, 0)
-    bestTable:Board = minimax(current_board, 2, True, 0, 1000, player_color, changeColor(player_color))
+    bestTable:Board = minimax(current_board, 3, True, 0, 1000, player_color, changeColor(player_color))
 
 
     try :
-        ##11
         print("-------------------------------------------------------")
-        print(f"Beginning SCORE = {bestTable.parent.parent.score} : \n {bestTable.parent.parent.board}")
-        print(f"{player_color} choice 1 SCORE = {bestTable.parent.score} : \n {bestTable.parent.board}")
-        print(f"{changeColor(player_color)} choice 1 SCORE = {bestTable.score}: \n {bestTable.board}")
+        print(f"Beginning SCORE = {bestTable.parent.parent.parent.score} : \n {bestTable.parent.parent.parent.board}")
+        print(f"{player_color} choice 1 SCORE = {bestTable.parent.parent.score} : \n {bestTable.parent.parent.board}")
+        print(f"{changeColor(player_color)} choice 1 SCORE = {bestTable.parent.score}: \n {bestTable.parent.board}")
+        print(f"{player_color} choice 2 SCORE = {bestTable.score}: \n {bestTable.board}")
         print("-------------------------------------------------------")
     except Exception as e:
         print("Cannot display parents ! ")
@@ -293,7 +298,7 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
 
 
     print(f"Calculated time : {finaleTime}")
-    return bestTable.parent.move
+    return bestTable.parent.parent.move
 
 
     # default for DEBUG
