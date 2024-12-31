@@ -162,7 +162,7 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
                     if moves and( moves != -1):
                         all_possible_moves.append(moves)
 
-        print(all_possible_moves)
+        #print(all_possible_moves)
         return all_possible_moves
 
     #MOVE PIECE (VIRTUALLY)
@@ -197,10 +197,9 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
     # CALCULATING SCORE BASED ON THE BOARD
     def calculate_score(board, my_color):
         piece_values = {
-            'p': 1, 'n': 3, 'b': 3, 'r': 5, 'q': 9, 'k': 1000  # Material values for pieces
+            'p': 10, 'n': 30, 'b': 30, 'r': 50, 'q': 90, 'k': 1000  # Material values for pieces
         }
-
-        # Positional table (applies to all pieces)
+        # Single positional table (applies to all pieces)
         positional_table = [
             [-5, -4, -3, -3, -3, -3, -4, -5],
             [-4, -2, -1, -1, -1, -1, -2, -4],
@@ -215,58 +214,6 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
         opponent_color = 'b' if my_color == 'w' else 'w'
         score = 0
 
-        attack_bonus = 0  # Variable to track attacking bonuses
-
-        # Function to check if a piece is attacking an opponent piece
-        def is_attacking(square, color):
-            attacked_squares = set()
-            for row_index in range(8):
-                for col_index in range(8):
-                    piece = board[row_index][col_index]
-                    if piece == '':
-                        continue
-
-                    piece_type, piece_color = piece[0], piece[1]
-                    if piece_color == color:
-                        if piece_type == 'p':
-                            # Pawns attack diagonally
-                            if (color == 'w' and row_index - 1 == square[0] and abs(col_index - square[1]) == 1) or \
-                                    (color == 'b' and row_index + 1 == square[0] and abs(col_index - square[1]) == 1):
-                                attacked_squares.add((square[0], square[1]))
-                        elif piece_type == 'n':
-                            # Knights move in "L" shape
-                            knight_moves = [(2, 1), (2, -1), (-2, 1), (-2, -1), (1, 2), (1, -2), (-1, 2), (-1, -2)]
-                            for move in knight_moves:
-                                if (row_index + move[0] == square[0]) and (col_index + move[1] == square[1]):
-                                    attacked_squares.add((square[0], square[1]))
-                        elif piece_type in ['r', 'b', 'q']:
-                            # Rooks, bishops, and queens move in straight or diagonal lines
-                            directions = []
-                            if piece_type == 'r' or piece_type == 'q': directions += [(1, 0), (-1, 0), (0, 1), (0, -1)]
-                            if piece_type == 'b' or piece_type == 'q': directions += [(1, 1), (-1, -1), (1, -1),
-                                                                                      (-1, 1)]
-
-                            for direction in directions:
-                                r, c = row_index, col_index
-                                while True:
-                                    r += direction[0]
-                                    c += direction[1]
-                                    if 0 <= r < 8 and 0 <= c < 8:
-                                        if (r, c) == square:
-                                            attacked_squares.add((r, c))
-                                        if board[r][c] != '': break
-                                    else:
-                                        break
-                        elif piece_type == 'k':
-                            # King moves one square in any direction
-                            for dr in [-1, 0, 1]:
-                                for dc in [-1, 0, 1]:
-                                    if (row_index + dr == square[0]) and (col_index + dc == square[1]):
-                                        attacked_squares.add((square[0], square[1]))
-
-            return attacked_squares
-
-        # Iterate over the board and calculate the score
         for row_index, row in enumerate(board):
             for col_index, piece in enumerate(row):
                 if piece == '':
@@ -276,27 +223,13 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
                 piece_color = piece[1]  # 'w' or 'b'
                 piece_value = piece_values.get(piece_type, 0)  # Material value
 
-                # Positional value from the table
+                # Positional value from the unified table
                 position_value = positional_table[row_index][col_index]
-
-                # Check if the piece is attacking or under attack
-                attacked_squares = is_attacking((row_index, col_index), opponent_color)
-
-                # Attack reward: if a piece is attacking an opponent's piece, reward it
-                if piece_color == my_color:
-                    # Reward for attacking an opponent's piece
-                    for (r, c) in attacked_squares:
-                        target_piece = board[r][c]
-                        if target_piece and target_piece[1] == opponent_color:
-                            attack_bonus += piece_values.get(target_piece[0], 0)
 
                 if piece_color == opponent_color:
                     score -= (piece_value + position_value)
                 else:
                     score += (piece_value + position_value)
-
-        # Add the attack bonus to the score
-        score += attack_bonus
 
         return score
 
@@ -313,54 +246,52 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
         if depth == 0:
             return b
 
-        bestBoard = None
+        bestBoard = b
 
         if maximizingPlayer:
-            print(f"All the moves I can do : Current Depth {b.depth}")
-            maxEval = -1000
+            #print(f"All the moves I can do : Current Depth {b.depth}")
+            maxEval = -float('inf')
             boards = allpossibleBoards(b, my_color, my_color)
             for board in boards:
                 resultBoard = minimax(board, depth - 1, False, alpha, beta, my_color, opponent_color)
                 resultBoardEval = resultBoard.score
 
-
                 if resultBoardEval > maxEval:
-
                     maxEval = resultBoardEval
                     bestBoard = resultBoard
+
+
 
                 alpha = max(alpha, resultBoardEval)
 
                 if beta <= alpha:
                     break
-
-            bestBoard.score = maxEval
             return(bestBoard)
 
 
         else:
-            print(f"Possible moves of my opponent : {b.depth}")
-            minEval = 1000
+            #print(f"Possible moves of my opponent : {b.depth}")
+            minEval = float('inf')
             boards = allpossibleBoards(b, opponent_color, my_color)
-            print(f"Number of moves : {len(boards)}")
+            #print(f"Number of moves : {len(boards)}")
             for board in boards:
-               # print(f"Score : {board.score}")
-               # print(f"{np.flipud(board.board)}\n")
+                #print("MINIMIZING")
+                #print(f"Score : {board.score}")
+                #print(f"{np.flipud(board.board)}\n")
                 resultBoard = minimax(board, depth - 1, True, alpha, beta, my_color, opponent_color)
-                resultBoardEval = -resultBoard.score
+                resultBoardEval = resultBoard.score
 
-               # print(f"MinEval : {minEval}")
 
                 if resultBoardEval < minEval:
                     minEval = resultBoardEval
                     bestBoard = resultBoard
+
 
                 beta = min(beta, resultBoardEval)
 
                 if beta <= alpha:
                     break
 
-            bestBoard.score = minEval
             return(bestBoard)
 
 
@@ -371,39 +302,38 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
     current_board:Board = Board(board, None, 0, None, 0)
 
     bestBoard = None
-    bestValue = -1000
-    alpha = -1000
-    beta = 1000
-    depth = 2
+    totalScore = 0
+    bestValue = -10000
+    alpha = -float('inf')
+    beta = float('inf')
+    depth = 3
     boards = allpossibleBoards(current_board, player_color, player_color)
     for board in boards:
-        print("***************************************************")
-        print("Beginning: ")
-        print(f"{board.parent.board} \n ")
-        print("My First Move: ")
-        print(f"{board.board} \n ")
-        print("***************************************************")
-
         resultBoard = minimax(board, depth - 1, False, alpha, beta, player_color, changeColor(player_color))
-        childEval = resultBoard.score
-        if childEval > bestValue:
-            bestValue = childEval
+        totalScore = resultBoard.score
+        if totalScore > bestValue:
+            bestValue = totalScore
             bestBoard = resultBoard
 
-    try :
-        print("-------------------------------------------------------")
-        print(f"Beginning SCORE = {bestBoard.parent.parent.score} : \n {bestBoard.parent.parent.board}")
-        print(f"{player_color} choice 1 SCORE = {bestBoard.parent.score}: \n {bestBoard.parent.board}")
-        print(f"{changeColor(player_color)} choice 1 SCORE = {bestBoard.score}: \n {bestBoard.board}")
-        print("-------------------------------------------------------")
-    except Exception as e:
-        print("Cannot display parents ! ")
+
+    print("***************************************************")
+    print(f"Total score : {totalScore}")
+    print("Beginning: ")
+    print(f"{bestBoard.parent.parent.parent.board} \n ")
+    print("My First Move: ")
+    print(f"{bestBoard.parent.parent.board} \n ")
+    print("My Opponent's move: ")
+    print(f"{bestBoard.parent.board} \n ")
+    print("My Second move: ")
+    print(f"{bestBoard.board} \n ")
+    print("***************************************************")
+
 
     finaleTime = process_time() - startTime
 
 
     print(f"Calculated time : {finaleTime}")
-    return bestBoard.parent.move
+    return bestBoard.parent.parent.move
 
 
     # default for DEBUG
