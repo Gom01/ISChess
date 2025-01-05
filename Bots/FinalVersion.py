@@ -157,6 +157,7 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
         def evaluate(move, b, color):
             score = 0
             score += king_safety_score(move,b,color)
+            score += enemy_king_danger_score(move,b,changeColor(color))
             score += base_capture_score(move, b, color)
             score += control_center_score(move)
             return score
@@ -185,18 +186,35 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
     def king_safety_score(move, b:Board, my_color):
         new_board = movePiece(move, b.board.copy())
         king_position = None
-        opponent_color = 'b' if my_color == 'w' else 'w'
         for x in range(8):
             for y in range(8):
                 if new_board[x, y] == f'k{my_color}':
                     king_position = (x, y)
                     break
+
         if king_position is None:
-            return -1000
+            return -1000 # Negative score for losing the king
         if is_king_in_check(new_board, king_position, my_color):
-            return -40  # Negative score for exposing the king
+            return -1000 # Negative score for exposing the king
         if is_king_protected(new_board, king_position, my_color):
             return 10  # Positive score for keeping the king protected
+        return 0
+
+    def enemy_king_danger_score(move, b:Board, color):
+        new_board = movePiece(move, b.board.copy())
+        king_position = None
+        for x in range(8):
+            for y in range(8):
+                if new_board[x, y] == f'k{color}':
+                    king_position = (x, y)
+                    break
+
+        if king_position is None:
+            return 1000 # Positive score for defeating the king
+        if is_king_in_check(new_board, king_position, changeColor(color)):
+            return 1000 # Positive score for checking enemy king
+        if is_king_protected(new_board, king_position, color):
+            return -10  # Negative score for keeping the king protected
         return 0
 
     def is_king_in_check(b, king_position, my_color):
