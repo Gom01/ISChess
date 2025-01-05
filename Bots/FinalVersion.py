@@ -1,29 +1,26 @@
-import collections
-import copy
-from collections import deque
-from time import process_time
-from turtledemo.penrose import inflatedart
-
+import time
+from time import *
+import hashlib
 import numpy as np
-from PyQt6 import QtCore
 from Bots.ChessBotList import register_chess_bot
 
-import random
 
 def chess_bot(player_sequence, board, time_budget, **kwargs):
+    start_time = time()
+    time_limit = time_budget - 0.005
 
-
+    #Memoization
+    def hash_board(b):
+        return hashlib.sha256(b.flatten()).hexdigest()
 
     ##FUNCTION OF MOVEMENTS (pawn,...)
     def get_pawn_moves(x, y, color, current_board, direction):
         moves = []
-        board_size = current_board.shape[0]  # Assuming a square board (e.g., 8x8)
-
+        board_size = current_board.shape[0]
         # Single step forward
         next_x = x + direction
         if 0 <= next_x < board_size and current_board[next_x, y] == '':
             moves.append(((x, y), (next_x, y)))
-
         # Capture diagonally
         for dy in [-1, 1]:
             next_y = y + dy
@@ -31,7 +28,6 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
                 target = current_board[next_x, next_y]
                 if target != '' and target[-1] != color:  # Opponent's piece
                     moves.append(((x, y), (next_x, next_y)))
-
         return moves
 
     def get_rook_moves(x, y, color, current_board):
@@ -130,21 +126,20 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
 
 
     ##CALCULATING POSSIBLE MOVES
-    def getAllPossibleMoves(current_board, player_color, my_color):
+    def getAllPossibleMoves(current_board, current_color, my_color):
         all_possible_moves = []
-
-        if my_color != player_color:
+        #Changing direction depending of the color
+        if my_color != current_color:
             direction = -1
         else:
             direction = 1
-
         for x in range(current_board.shape[0]):
             for y in range(current_board.shape[1]):
                 moves = []
                 if current_board[x,y] != '':
                     piece = current_board[x,y][0]
                     color = current_board[x,y][1]
-                    if color != player_color:
+                    if color != current_color:
                         continue
                     match piece:
                         case "p":
@@ -161,9 +156,83 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
                             moves = get_rook_moves(x, y, color, current_board)
                     if moves and( moves != -1):
                         all_possible_moves.append(moves)
-
-        #print(all_possible_moves)
         return all_possible_moves
+
+    #Sorting moves (improve alpha-beta)
+    def sort_moves(moves, b:Board, color):
+        def evaluate(move, b, color):
+            score = 0
+            score += king_safety_score(move,b,color)
+            score += base_capture_score(move, b, color)
+            score += control_center_score(move)
+            return score
+        return sorted(moves, key=lambda move:evaluate(move, b, color), reverse=True)
+
+    #Heuristics (for sorting moves)
+    def base_capture_score(move, b, my_color):
+        x = move[1][0]
+        y = move[1][1]
+        piece = b.board[x,y]
+        if piece == '' or piece[1] == my_color:
+            return 0
+        piece_values = {'p': 10, 'n': 30, 'b': 30, 'r': 50, 'q': 90, 'k': 1000}
+        return piece_values.get(piece[0])
+
+    def control_center_score(move):
+        x = move[1][0]
+        y = move[1][1]
+        center_squares = [(3, 3), (3, 4), (4, 3), (4, 4)]
+        if (x, y) in center_squares:
+            return 5
+        if 2 <= x <= 5 and 2 <= y <= 5:
+            return 2
+        return 0
+
+    def king_safety_score(move, b:Board, my_color):
+        new_board = movePiece(move, b.board.copy())
+        king_position = None
+        opponent_color = 'b' if my_color == 'w' else 'w'
+        for x in range(8):
+            for y in range(8):
+                if new_board[x, y] == f'k{my_color}':
+                    king_position = (x, y)
+                    break
+        if king_position is None:
+            return -1000
+        if is_king_in_check(new_board, king_position, my_color):
+            return -40  # Negative score for exposing the king
+        if is_king_protected(new_board, king_position, my_color):
+            return 10  # Positive score for keeping the king protected
+        return 0
+
+    def is_king_in_check(b, king_position, my_color):
+        x, y = king_position
+        opponent_color = 'b' if my_color == 'w' else 'w'
+        all_opponent_moves = getAllPossibleMoves(b, opponent_color, my_color)
+        all_opponent_moves = [item for sublist in all_opponent_moves for item in sublist]
+        for move in all_opponent_moves:
+            end_x = move[1][0]
+            end_y = move[1][1]
+            if b[end_x, end_y] == b[x,y]:
+                return True
+        return False
+
+    def is_king_protected(b, king_position, my_color):
+        x, y = king_position
+        # Define adjacent squares around the king
+        adjacent_squares = [
+            (x + dx, y + dy) for dx, dy in [(-1, -1), (-1, 0), (-1, 1),
+                                            (0, -1), (0, 1),
+                                            (1, -1), (1, 0), (1, 1)]
+        ]
+        # Check if there are friendly pieces around the king
+        for nx, ny in adjacent_squares:
+            if 0 <= nx < 8 and 0 <= ny < 8:
+                piece = b[nx, ny]
+                if piece != '' and piece[1] == my_color:
+                    return True
+        return False
+
 
     #MOVE PIECE (VIRTUALLY)
     def movePiece(move, current_board):
@@ -177,29 +246,45 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
         return current_board
 
     #CALCULATING ALL POSSIBLE BOARDS
-    def allpossibleBoards(board:Board, currentColor, my_color):
+    def allpossibleBoards(b:Board, current_color, my_color):
+        count = 0
         boards = []
-        possible_moves = getAllPossibleMoves(board.board, currentColor, my_color)
+        possible_moves = getAllPossibleMoves(b.board, current_color, my_color)
         possible_moves = [item for sublist in possible_moves for item in sublist]
+
+        ##sorting moves
+        possible_moves = sort_moves(possible_moves, b, my_color)
+
         for move in possible_moves:
-            new_board = copy.deepcopy(board.board)
-            new_board = movePiece(move, new_board)
+            new_board = movePiece(move, b.board.copy())
+            #For memoization
+            board_hash = hash_board(new_board)
+
+            score = None
+
+            if board_hash in transposition_table:
+                score = transposition_table[board_hash]
+                count += 1
+            else:
+                score = calculate_score(new_board, current_color)
+                transposition_table[board_hash] = score
+
             new_board = Board(
                 new_board,
                 move,
-                board.depth + 1,
-                board,
-                calculate_score(new_board, currentColor)
+                b.depth + 1,
+                b,
+                score
             )
             boards.append(new_board)
+
         return boards
 
-    # CALCULATING SCORE BASED ON THE BOARD
-    def calculate_score(board, my_color):
+    #Calculating score of the board
+    def calculate_score(b, my_color):
         piece_values = {
-            'p': 10, 'n': 30, 'b': 30, 'r': 50, 'q': 90, 'k': 1000  # Material values for pieces
+            'p': 10, 'n': 30, 'b': 30, 'r': 50, 'q': 90, 'k': 1000
         }
-        # Single positional table (applies to all pieces)
         positional_table = [
             [-5, -4, -3, -3, -3, -3, -4, -5],
             [-4, -2, -1, -1, -1, -1, -2, -4],
@@ -214,16 +299,13 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
         opponent_color = 'b' if my_color == 'w' else 'w'
         score = 0
 
-        for row_index, row in enumerate(board):
+        for row_index, row in enumerate(b):
             for col_index, piece in enumerate(row):
                 if piece == '':
                     continue
-
-                piece_type = piece[0]  # e.g., 'p' for pawn
-                piece_color = piece[1]  # 'w' or 'b'
-                piece_value = piece_values.get(piece_type, 0)  # Material value
-
-                # Positional value from the unified table
+                piece_type = piece[0]
+                piece_color = piece[1]
+                piece_value = piece_values.get(piece_type, 0)
                 position_value = positional_table[row_index][col_index]
 
                 if piece_color == opponent_color:
@@ -233,7 +315,7 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
 
         return score
 
-    # CHANGE COLOR
+    #change color
     def changeColor(color):
         if color == 'w':
             return 'b'
@@ -241,109 +323,80 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
             return 'w'
 
     #ALPHA BETA PRUNING
-    def minimax(b:Board, depth, maximizingPlayer, alpha, beta, my_color, opponent_color, branchCount):
-        branchCount += 1
+    def minimax(b:Board, depth, maximizingPlayer, alpha, beta, my_color, opponent_color, time_limit, start_time):
+        current_time = time()-start_time
 
-        if depth == 0:
-            return b, branchCount
+        if (depth == 0) or (current_time >= time_limit):
+            return b
 
         bestBoard = b
 
+        #My turn
         if maximizingPlayer:
-            #print(f"All the moves I can do : Current Depth {b.depth}")
             maxEval = -float('inf')
             boards = allpossibleBoards(b, my_color, my_color)
-            for board in boards:
-                resultBoard, branchCount = minimax(board, depth - 1, False, alpha, beta, my_color, opponent_color, branchCount)
+            for bo in boards:
+                resultBoard = minimax(bo, depth - 1, False, alpha, beta, my_color, opponent_color, time_limit, start_time)
                 resultBoardEval = resultBoard.score
-
                 if resultBoardEval > maxEval:
                     maxEval = resultBoardEval
                     bestBoard = resultBoard
-
-
 
                 alpha = max(alpha, resultBoardEval)
 
                 if beta <= alpha:
                     break
-            return bestBoard, branchCount
+            return bestBoard
 
-
+        #My opponent's turn
         else:
-            #print(f"Possible moves of my opponent : {b.depth}")
             minEval = float('inf')
             boards = allpossibleBoards(b, opponent_color, my_color)
-            #print(f"Number of moves : {len(boards)}")
-            for board in boards:
-                #print("MINIMIZING")
-                #print(f"Score : {board.score}")
-                #print(f"{np.flipud(board.board)}\n")
-                resultBoard, branchCount = minimax(board, depth - 1, True, alpha, beta, my_color, opponent_color, branchCount)
+            for bo in boards:
+                resultBoard = minimax(bo, depth - 1, True, alpha, beta, my_color, opponent_color, time_limit, start_time)
                 resultBoardEval = resultBoard.score
-
-
                 if resultBoardEval < minEval:
                     minEval = resultBoardEval
                     bestBoard = resultBoard
-
-
                 beta = min(beta, resultBoardEval)
-
                 if beta <= alpha:
                     break
+            return bestBoard
 
-            return bestBoard,branchCount
-
-
-
+    ###MAIN###
     player_color = player_sequence[1]
-    startTime = process_time()
-
-    current_board:Board = Board(board, None, 0, None, 0)
-
+    current_board: Board = Board(board, None, 0, None, 0)
     bestBoard = None
-    totalScore = 0
-    branchCount = 0
-    bestValue = -10000
+    best_value = -float('inf')
     alpha = -float('inf')
     beta = float('inf')
     depth = 3
+    transposition_table = {}
     boards = allpossibleBoards(current_board, player_color, player_color)
-    for board in boards:
-        resultBoard, branchCount = minimax(board, depth - 1, False, alpha, beta, player_color, changeColor(player_color), branchCount)
-        totalScore = resultBoard.score
-        if totalScore > bestValue:
-            bestValue = totalScore
-            bestBoard = resultBoard
+    batch_size = 3
 
+    for i,b in enumerate(boards):
+        if i % batch_size == 0:
+            if time() - start_time >= time_limit:
+                break
+        result_board = minimax(b, depth-1, False, alpha, beta, player_color, changeColor(player_color), time_limit, start_time)
+        totalScore = result_board.score
+        if (totalScore > best_value) and (result_board.depth == depth):
+            best_value = totalScore
+            bestBoard = result_board
 
-    print("***************************************************")
-    print(f"Total score : {totalScore}")
-    print("Beginning: ")
-    print(f"{bestBoard.parent.parent.parent.board} \n ")
-    print("My First Move: ")
-    print(f"{bestBoard.parent.parent.board} \n ")
-    print("My Opponent's move: ")
-    print(f"{bestBoard.parent.board} \n ")
-    print("My Second move: ")
-    print(f"{bestBoard.board} \n ")
+    for i in range(depth-1):
+        if bestBoard == None:
+            bestBoard = boards[0]
+        if bestBoard.parent.move == None:
+            break
+        bestBoard = bestBoard.parent
+    if bestBoard.depth == 2:
+        bestBoard = bestBoard.parent
 
-    print(f"Total Branches : {branchCount}")
-    print("***************************************************")
+    return bestBoard.move
 
-
-    finaleTime = process_time() - startTime
-
-
-    print(f"Calculated time : {finaleTime}")
-    return bestBoard.parent.parent.move
-
-
-    # default for DEBUG
-    return (0,0), (0,0)
-
-register_chess_bot("alphaBeta", chess_bot)
+register_chess_bot("FinalVersion", chess_bot)
 
 class Board:
     def __init__(self, board, move, depth, parent, score):

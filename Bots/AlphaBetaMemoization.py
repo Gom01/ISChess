@@ -300,8 +300,9 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
             )
             boards.append(new_board)
 
-        #print(f"Number of boards : {len(boards)}")
-        #(f"Not calculated board : {count}")
+
+        print(f"Number of boards : {len(boards)}")
+        print(f"Not calculated board : {count}")
         return boards
 
     def calculate_score(board, my_color):
@@ -453,7 +454,7 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
     #print(bestBoard.board)
     return bestBoard.move
 
-register_chess_bot("final", chess_bot)
+register_chess_bot("WithMemozation", chess_bot)
 
 class Board:
     def __init__(self, board, move, depth, parent, score):
