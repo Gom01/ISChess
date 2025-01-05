@@ -2,6 +2,8 @@ import time
 from time import *
 import hashlib
 import numpy as np
+from PyQt6 import *
+
 from Bots.ChessBotList import register_chess_bot
 
 def chess_bot(player_sequence, board, time_budget, **kwargs):
@@ -9,8 +11,9 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
     time_limit = time_budget - 0.005
 
     #Memoization
-    def hash_board(b):
-        return hashlib.sha256(b.flatten()).hexdigest()
+    def hash_board(b, current_color):
+        hash = hashlib.sha256(b.flatten()).hexdigest()
+        return hash + current_color
 
 
     ##FUNCTION OF MOVEMENTS (pawn,...)
@@ -280,12 +283,16 @@ def chess_bot(player_sequence, board, time_budget, **kwargs):
         for move in possible_moves:
             new_board = movePiece(move, b.board.copy())
 
-            board_hash = hash_board(new_board)
+            board_hash = hash_board(new_board, currentColor)
+            board_hash_opp = hash_board(new_board, changeColor(currentColor))
 
             score = None
 
             if board_hash in transposition_table:
                 score = transposition_table[board_hash]
+                count += 1
+            elif board_hash_opp in transposition_table:
+                score = -transposition_table[board_hash_opp]
                 count += 1
             else:
                 score = calculate_score(new_board, currentColor)
